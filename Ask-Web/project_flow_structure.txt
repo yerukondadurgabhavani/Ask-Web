@@ -1,0 +1,422 @@
+# Advanced AI Website Chatbot - Project Flow Structure
+
+## ═══════════════════════════════════════════════════════════════
+##                    PROJECT FLOW DIAGRAM
+## ═══════════════════════════════════════════════════════════════
+
+## PHASE 1: SYSTEM INITIALIZATION
+## ────────────────────────────────────────
+1. User launches application (streamlit run advanced_chatbot.py)
+   │
+   ├── Load environment variables (.env file)
+   ├── Initialize Streamlit page configuration
+   ├── Setup session state variables
+   │   ├── messages: []
+   │   ├── website_content: []
+   │   ├── collection: None
+   │   ├── chroma_client: None
+   │   ├── encoder: None
+   │   ├── last_url: ""
+   │   └── voice_enabled: False
+   │
+   └── Render user interface
+       ├── Sidebar configuration panel
+       ├── Main content area
+       └── Chat interface
+
+## PHASE 2: USER CONFIGURATION
+## ────────────────────────────────────────
+2. User configures system settings
+   │
+   ├── Required Settings
+   │   ├── Gemini API Key (password input)
+   │   └── Website URL (text input)
+   │
+   ├── Scraping Settings
+   │   ├── Max pages to scrape (1-50, default: 15)
+   │   ├── Parallel workers (1-5, default: 3)
+   │   ├── Extract text from images (checkbox)
+   │   └── Use GPU for OCR (checkbox)
+   │
+   ├── Voice Settings
+   │   └── Enable voice responses (checkbox)
+   │
+   └── Storage Settings
+       └── Collection name (default: "website_content")
+
+## PHASE 3: STORAGE INITIALIZATION
+## ────────────────────────────────────────
+3. Initialize persistent vector storage
+   │
+   ├── Create PersistentVectorStorage instance
+   │   └── persist_directory: "./chroma_db"
+   │
+   ├── Initialize ChromaDB client
+   │   ├── chromadb.PersistentClient(path=persist_directory)
+   │   └── Load sentence transformer model (all-MiniLM-L6-v2)
+   │
+   ├── Create or retrieve collection
+   │   ├── Try to get existing collection
+   │   └── Create new collection if doesn't exist
+   │
+   └── Display storage statistics
+       └── Show stored chunks count
+
+## PHASE 4: WEB SCRAPING PROCESS
+## ────────────────────────────────────────
+4. User clicks "🚀 Start Advanced Scraping"
+   │
+   ├── Validation Check
+   │   ├── Website URL provided? ✓
+   │   ├── Gemini API key provided? ✓
+   │   └── URL different from last scraped? ✓
+   │
+   ├── Initialize AdvancedWebsiteScraper
+   │   ├── Setup Chrome drivers (headless configuration)
+   │   ├── Configure OCR engines
+   │   │   ├── EasyOCR (GPU) if enabled
+   │   │   └── Tesseract (CPU) fallback
+   │   └── Set max_drivers = 3
+   │
+   ├── URL Discovery Phase
+   │   ├── Launch Chrome WebDriver
+   │   ├── Navigate to base URL
+   │   ├── Extract all anchor tags (<a> elements)
+   │   ├── Filter and validate URLs
+   │   │   ├── Same domain check
+   │   │   ├── Valid URL structure
+   │   │   └── Exclude file types (.pdf, .jpg, etc.)
+   │   │
+   │   ├── Prioritize URLs
+   │   │   ├── High Priority: /about, /services, /products, /docs
+   │   │   ├── Medium Priority: /contact, /team, /careers
+   │   │   └── Regular Priority: other valid URLs
+   │   │
+   │   └── Create final URL list (limited by max_pages)
+   │
+   ├── Parallel Scraping Phase
+   │   ├── Create ThreadPoolExecutor (max_workers)
+   │   ├── Submit scraping jobs for each URL
+   │   ├── For each URL:
+   │   │   ├── Launch individual Chrome driver
+   │   │   ├── Navigate to URL
+   │   │   ├── Wait for page load (WebDriverWait)
+   │   │   ├── Parse HTML with BeautifulSoup
+   │   │   ├── Remove unwanted elements
+   │   │   │   └── scripts, styles, nav, footer, header, ads
+   │   │   ├── Extract main content
+   │   │   │   ├── Get page title
+   │   │   │   ├── Extract text content
+   │   │   │   └── Clean and normalize text
+   │   │   │
+   │   │   ├── OCR Processing (if enabled)
+   │   │   │   ├── Find all <img> tags
+   │   │   │   ├── Download images (first 5)
+   │   │   │   ├── Process with OCR engine
+   │   │   │   │   ├── EasyOCR: readtext() with confidence filtering
+   │   │   │   │   └── Tesseract: image_to_string()
+   │   │   │   └── Combine extracted text
+   │   │   │
+   │   │   ├── Validate content (minimum 100 characters)
+   │   │   ├── Create content object
+   │   │   │   ├── url: source URL
+   │   │   │   ├── title: page title
+   │   │   │   ├── content: combined text (12,000 char limit)
+   │   │   │   └── image_count: number of processed images
+   │   │   │
+   │   │   └── Close WebDriver
+   │   │
+   │   ├── Collect results from all workers
+   │   ├── Update progress bar in real-time
+   │   └── Display completion status
+   │
+   └── Content Storage Phase
+       ├── Process scraped content list
+       ├── For each content item:
+       │   ├── Split into chunks (800 words each)
+       │   ├── Create metadata for each chunk
+       │   │   ├── url: source page URL
+       │   │   ├── title: page title
+       │   │   ├── website: base website URL
+       │   │   ├── chunk_index: position in page
+       │   │   ├── image_count: OCR images processed
+       │   │   └── timestamp: current time
+       │   │
+       │   └── Generate unique document ID
+       │       └── format: "{website}_{page}_{chunk}_{timestamp}"
+       │
+       ├── Store in ChromaDB
+       │   ├── Automatic vector embedding generation
+       │   ├── Index creation for fast search
+       │   └── Metadata association
+       │
+       ├── Update session state
+       │   ├── website_content = scraped results
+       │   ├── last_url = current website
+       │   └── Clear previous messages
+       │
+       └── Display success metrics
+           ├── Number of pages scraped
+           ├── Number of images processed
+           └── Total content chunks stored
+
+## PHASE 5: QUERY PROCESSING (TEXT INPUT)
+## ────────────────────────────────────────
+5. User enters text question in chat input
+   │
+   ├── Input Validation
+   │   ├── Storage initialized? ✓
+   │   ├── Gemini API key provided? ✓
+   │   └── Input not empty? ✓
+   │
+   ├── Add user message to session state
+   │   └── {"role": "user", "content": user_input}
+   │
+   ├── Display user message in chat interface
+   │
+   ├── Semantic Search Process
+   │   ├── Convert query to vector embedding
+   │   │   └── Use sentence transformer (all-MiniLM-L6-v2)
+   │   │
+   │   ├── Search ChromaDB collection
+   │   │   ├── Query with user's vector
+   │   │   ├── Use cosine similarity matching
+   │   │   ├── Return top 5 results by default
+   │   │   └── Include content, metadata, and distance scores
+   │   │
+   │   └── Process search results
+   │       ├── Calculate relevance scores (1 - distance)
+   │       ├── Sort by relevance
+   │       └── Prepare context for AI
+   │
+   ├── AI Response Generation
+   │   ├── Assemble context from search results
+   │   │   ├── Combine content from top results
+   │   │   ├── Include source attribution
+   │   │   └── Add metadata information
+   │   │
+   │   ├── Create structured prompt
+   │   │   ├── System instructions
+   │   │   ├── Website content context
+   │   │   ├── User question
+   │   │   └── Response guidelines
+   │   │
+   │   ├── Send to Google Gemini (1.5-Flash)
+   │   │   ├── Configure API client
+   │   │   ├── Generate content with prompt
+   │   │   └── Return AI response
+   │   │
+   │   └── Validate and format response
+   │
+   ├── Display AI Response
+   │   ├── Show response text in chat
+   │   ├── Add to session state messages
+   │   │   └── {"role": "assistant", "content": ai_response}
+   │   │
+   │   ├── Generate voice response (if enabled)
+   │   │   ├── Initialize VoiceInteraction
+   │   │   ├── Create TTS audio using gTTS
+   │   │   ├── Save to temporary MP3 file
+   │   │   ├── Display audio player
+   │   │   └── Clean up temporary file
+   │   │
+   │   └── Show expandable sources section
+   │       ├── List each source with metadata
+   │       ├── Display relevance scores
+   │       ├── Show content previews (300 chars)
+   │       └── Include source URLs and image counts
+   │
+   └── Update chat history for future context
+
+## PHASE 6: VOICE QUERY PROCESSING
+## ────────────────────────────────────────
+6. User clicks "🎤 Ask Question by Voice" (if voice enabled)
+   │
+   ├── Input Validation
+   │   ├── Voice enabled in sidebar? ✓
+   │   ├── Storage initialized? ✓
+   │   └── Website content available? ✓
+   │
+   ├── Initialize Voice Processing
+   │   ├── Create VoiceInteraction instance
+   │   ├── Setup speech recognizer
+   │   │   ├── Set energy threshold = 300
+   │   │   ├── Enable dynamic energy threshold
+   │   │   └── Configure microphone source
+   │   │
+   │   └── Set session state: listening_for_voice = True
+   │
+   ├── Audio Capture Process
+   │   ├── Show "🎤 Listening..." spinner
+   │   ├── Access default microphone
+   │   ├── Adjust for ambient noise (1 second)
+   │   ├── Listen for speech
+   │   │   ├── Timeout: 2 seconds to start speaking
+   │   │   ├── Phrase time limit: 10 seconds maximum
+   │   │   └── Record audio data
+   │   │
+   │   └── Handle various audio scenarios
+   │       ├── WaitTimeoutError: No speech detected
+   │       ├── UnknownValueError: Speech unclear
+   │       ├── RequestError: API service issues
+   │       └── Success: Audio captured
+   │
+   ├── Speech-to-Text Conversion
+   │   ├── Send audio to Google Speech Recognition API
+   │   ├── Receive text transcription
+   │   ├── Validate transcription quality
+   │   └── Display transcribed text to user
+   │
+   ├── Process Voice Query (Same as Text Query)
+   │   ├── Semantic search in ChromaDB
+   │   ├── AI response generation with Gemini
+   │   ├── Display text response
+   │   └── Show source attribution
+   │
+   ├── Generate Voice Response
+   │   ├── Create TTS audio using gTTS
+   │   │   ├── Limit text length (1000 chars max)
+   │   │   ├── Generate MP3 audio file
+   │   │   ├── Save to temporary file
+   │   │   └── Read audio bytes
+   │   │
+   │   ├── Display audio player
+   │   │   ├── Format: audio/mp3
+   │   │   ├── No autoplay (browser compatibility)
+   │   │   └── Manual play button
+   │   │
+   │   └── Clean up temporary files
+   │
+   ├── Add to Chat History
+   │   ├── User message: "🎤 {transcribed_text}"
+   │   ├── Assistant response: AI-generated answer
+   │   └── Update session state messages
+   │
+   └── Reset voice processing state
+       └── listening_for_voice = False
+
+## PHASE 7: SYSTEM MONITORING & FEEDBACK
+## ────────────────────────────────────────
+7. Continuous system operation and monitoring
+   │
+   ├── Real-time Progress Tracking
+   │   ├── Scraping progress bars
+   │   ├── Status text updates
+   │   ├── Success/error notifications
+   │   └── Performance metrics display
+   │
+   ├── Error Handling & Recovery
+   │   ├── Individual page scraping failures
+   │   ├── OCR processing errors
+   │   ├── Voice recognition issues
+   │   ├── API rate limiting
+   │   └── Network connectivity problems
+   │
+   ├── Storage Management
+   │   ├── Database size monitoring
+   │   ├── Collection statistics
+   │   ├── Automatic cleanup routines
+   │   └── Backup and recovery options
+   │
+   ├── User Experience Optimization
+   │   ├── Response time monitoring
+   │   ├── Relevance score tracking
+   │   ├── User interaction patterns
+   │   └── Feature usage analytics
+   │
+   └── System Resource Management
+       ├── Memory usage optimization
+       ├── CPU utilization monitoring
+       ├── Network bandwidth management
+       └── Storage space allocation
+
+## ═══════════════════════════════════════════════════════════════
+##                      DATA FLOW SUMMARY
+## ═══════════════════════════════════════════════════════════════
+
+## INPUT SOURCES:
+## ├── Website URLs (user-provided)
+## ├── Text queries (keyboard input)
+## ├── Voice queries (microphone input)
+## ├── Configuration settings (sidebar)
+## └── API keys (environment variables)
+
+## PROCESSING COMPONENTS:
+## ├── Chrome WebDriver (web scraping)
+## ├── BeautifulSoup (HTML parsing)
+## ├── EasyOCR/Tesseract (image text extraction)
+## ├── Sentence Transformers (vector embeddings)
+## ├── ChromaDB (vector storage and search)
+## ├── Google Gemini (AI response generation)
+## ├── Google Speech API (speech recognition)
+## └── Google TTS (text-to-speech)
+
+## OUTPUT FORMATS:
+## ├── Text responses (chat interface)
+## ├── Voice responses (audio playback)
+## ├── Source attributions (expandable sections)
+## ├── Progress indicators (real-time updates)
+## ├── Error messages (user notifications)
+## └── Statistics (scraping and storage metrics)
+
+## ═══════════════════════════════════════════════════════════════
+##                    TECHNICAL ARCHITECTURE
+## ═══════════════════════════════════════════════════════════════
+
+## FRONTEND LAYER:
+## └── Streamlit Web Interface
+##     ├── Sidebar configuration panel
+##     ├── Main content display area
+##     ├── Chat interaction interface
+##     ├── Progress tracking components
+##     └── Voice interaction controls
+
+## APPLICATION LAYER:
+## ├── AdvancedWebsiteScraper Class
+## │   ├── Chrome WebDriver management
+## │   ├── Parallel scraping coordination
+## │   ├── URL discovery and prioritization
+## │   ├── Content extraction and cleaning
+## │   └── OCR integration and processing
+## │
+## ├── VoiceInteraction Class
+## │   ├── Microphone input handling
+## │   ├── Speech recognition processing
+## │   ├── Text-to-speech generation
+## │   └── Audio format management
+## │
+## ├── PersistentVectorStorage Class
+## │   ├── ChromaDB client management
+## │   ├── Vector embedding generation
+## │   ├── Content chunking strategies
+## │   ├── Semantic search operations
+## │   └── Database maintenance routines
+## │
+## └── Response Generation Functions
+##     ├── Context assembly from search results
+##     ├── Prompt engineering for AI
+##     ├── API communication with Gemini
+##     └── Response formatting and validation
+
+## DATA LAYER:
+## ├── ChromaDB Vector Database
+## │   ├── Vector embeddings (384 dimensions)
+## │   ├── Content chunks (800 words each)
+## │   ├── Metadata associations
+## │   └── Similarity search indices
+## │
+## ├── Session State Management
+## │   ├── User conversation history
+## │   ├── Scraped content storage
+## │   ├── Application configuration
+## │   └── Processing state tracking
+## │
+## └── Temporary File System
+##     ├── Audio processing files
+##     ├── Image download cache
+##     ├── WebDriver session data
+##     └── Log files and diagnostics
+
+## ═══════════════════════════════════════════════════════════════
+##                      END OF FLOW DIAGRAM
+## ═══════════════════════════════════════════════════════════════

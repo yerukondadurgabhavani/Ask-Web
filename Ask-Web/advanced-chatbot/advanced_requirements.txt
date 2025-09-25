@@ -1,0 +1,25 @@
+# Advanced Requirements for Next-Level Chatbot
+
+# Core dependencies
+streamlit==1.28.0
+selenium==4.15.2
+beautifulsoup4==4.12.2
+google-generativeai>=0.5.2,<0.6.0
+sentence-transformers==2.2.2
+torch==2.1.0
+python-dotenv==1.0.0
+requests==2.31.0
+
+# Advanced features
+chromadb==0.4.15
+easyocr==1.7.0
+pytesseract==0.3.10
+Pillow==10.0.1
+SpeechRecognition==3.10.0
+gTTS==2.3.2
+pyaudio==0.2.11
+
+# Performance and utilities
+# concurrent.futures>=3.1.1
+asyncio>=3.4.3
+huggingface_hub==0.13.4
